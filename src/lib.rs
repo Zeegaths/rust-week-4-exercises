@@ -23,15 +23,17 @@ pub struct Point<T> {
 
 impl<T> Point<T> {
     pub fn new(x: T, y: T) -> Self {
+        Point {
+            x,
+            y,
+        }
         // TODO: Implement constructor for Point
     }
 }
 
 // Custom serialization for Bitcoin transaction
 pub trait BitcoinSerialize {
-    fn serialize(&self) -> Vec<u8> {
-        // TODO: Implement serialization to bytes
-    }
+    fn serialize(&self) -> Vec<u8>;
 }
 
 // Legacy Bitcoin transaction
@@ -45,6 +47,8 @@ pub struct LegacyTransaction {
 
 impl LegacyTransaction {
     pub fn builder() -> LegacyTransactionBuilder {
+        LegacyTransactionBuilder::new()
+
         // TODO: Return a new builder for constructing a transaction
     }
 }
@@ -59,32 +63,54 @@ pub struct LegacyTransactionBuilder {
 
 impl Default for LegacyTransactionBuilder {
     fn default() -> Self {
+        LegacyTransactionBuilder {
+            version: 1,
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+            lock_time:0,
+        }
+        
         // TODO: Implement default values
     }
 }
 
 impl LegacyTransactionBuilder {
     pub fn new() -> Self {
+        Self::default()
         // TODO: Initialize new builder by calling default
     }
 
     pub fn version(mut self, version: i32) -> Self {
+        self.version = version;
+        self
         // TODO: Set the transaction version
     }
 
     pub fn add_input(mut self, input: TxInput) -> Self {
+        self.inputs.push(input);
+        self
         // TODO: Add input to the transaction
     }
 
     pub fn add_output(mut self, output: TxOutput) -> Self {
+        self.outputs.push(output);
+        self
         // TODO: Add output to the transaction
     }
 
     pub fn lock_time(mut self, lock_time: u32) -> Self {
+        self.lock_time = lock_time;
+        self
         // TODO: Set lock_time for transaction
     }
 
     pub fn build(self) -> LegacyTransaction {
+        LegacyTransaction {
+            version: self.version,
+            inputs: self.inputs,
+            outputs:self.outputs,
+            lock_time: self.lock_time,
+        }
         // TODO: Build and return the final LegacyTransaction
     }
 }
