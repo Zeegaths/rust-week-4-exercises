@@ -137,6 +137,39 @@ pub struct OutPoint {
 
 // Simple CLI argument parser
 pub fn parse_cli_args(args: &[String]) -> Result<CliCommand, BitcoinError> {
+    if args.is_empty() {
+       return Err(BitcoinError::ParseError("No command provided".to_string()));
+   }
+
+   match args[0].as_str() {
+       "send" => {
+           if args.len() < 3 {
+               return Err(BitcoinError::ParseError(
+                   "Send command requires amount and address".to_string(),
+               ));
+           }
+
+           let amount = args[1]
+               .parse::<u64>()
+               .map_err(|_| BitcoinError::InvalidAmount)?;
+
+           let address = args[2].clone();
+
+           Ok(CliCommand::Send { amount, address })
+       }
+       "balance" => {
+           if args.len() > 1 {
+               return Err(BitcoinError::ParseError(
+                   "Balance command takes no arguments".to_string(),
+               ));
+           }
+           Ok(CliCommand::Balance)
+       }
+       cmd => Err(BitcoinError::ParseError(format!(
+           "Unknown command: {}. Use 'send' or 'balance'",
+           cmd
+       ))),
+   }
     // TODO: Match args to "send" or "balance" commands and parse required arguments
 }
 
@@ -150,14 +183,61 @@ impl TryFrom<&[u8]> for LegacyTransaction {
     type Error = BitcoinError;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        if data.len() < 10 {
+           return Err(BitcoinError::InvalidTransaction);
+       }
+
+       let mut offset = 0;
+
+       // Version (4 bytes)
+       let version = i32::from_le_bytes(data[offset..offset+4].try_into().unwrap());
+       offset += 4;
+
+       // Input count and create dummy inputs
+       let (input_count, size) = read_compact_size(data, offset)?;
+       offset += size;
+       let inputs = (0..input_count).map(|_| TxInput {
+           previous_output: OutPoint { txid: [0; 32], vout: 0 },
+           script_sig: vec![],
+           sequence: 0xffffffff,
+       }).collect();
+
+       // Output count and create dummy outputs  
+       let (output_count, size) = read_compact_size(data, offset)?;
+       let outputs = (0..output_count).map(|_| TxOutput {
+           value: 0,
+           script_pubkey: vec![],
+       }).collect();
+
+       // Lock time (last 4 bytes)
+       let lock_time = u32::from_le_bytes(data[data.len()-4..].try_into().unwrap());
+
+       Ok(LegacyTransaction { version, inputs, outputs, lock_time })
+   }
+             
         // TODO: Parse binary data into a LegacyTransaction
         // Minimum length is 10 bytes (4 version + 4 inputs count + 4 lock_time)
-    }
+    
+}
+
+fn read_compact_size(data: &[u8], offset: usize) -> Result<(u64, usize), BitcoinError> {
+   let first = *data.get(offset).ok_or(BitcoinError::InvalidTransaction)?;
+   match first {
+       0..=252 => Ok((first as u64, 1)),
+       253 => Ok((u16::from_le_bytes(data[offset+1..offset+3].try_into().unwrap()) as u64, 3)),
+       254 => Ok((u32::from_le_bytes(data[offset+1..offset+5].try_into().unwrap()) as u64, 5)),
+       255 => Ok((u64::from_le_bytes(data[offset+1..offset+9].try_into().unwrap()), 9)),
+   }
 }
 
 // Custom serialization for transaction
 impl BitcoinSerialize for LegacyTransaction {
     fn serialize(&self) -> Vec<u8> {
+        let mut result = Vec::new();       
+        result.extend_from_slice(&self.version.to_le_bytes());
+        result.extend_from_slice(&self.lock_time.to_le_bytes());
+        
+        result
         // TODO: Serialize only version and lock_time (simplified)
     }
 }
